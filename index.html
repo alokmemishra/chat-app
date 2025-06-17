@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat App</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 20px; }
+    #chat div { margin: 5px 0; }
+    #messageForm { display: flex; gap: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Chat App</h1>
+  <div id="chat"></div>
+  <form id="messageForm">
+    <input type="text" id="sender" placeholder="Your ID (e.g., user1)" required>
+    <input type="text" id="receiver" placeholder="Receiver ID (e.g., user2)" required>
+    <input type="text" id="message" placeholder="Type a message" required>
+    <button type="submit">Send</button>
+  </form>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const socket = io('http://localhost:5002');
+
+    // Join a room based on sender and receiver
+    function joinRoom() {
+      const sender = document.getElementById('sender').value;
+      const receiver = document.getElementById('receiver').value;
+      if (sender && receiver) {
+        const room = [sender, receiver].sort().join('-'); // e.g., "user1-user2"
+        socket.emit('join_room', room);
+        return room;
+      }
+      return null;
+    }
+
+    // Receive messages
+    socket.on('receive_message', (data) => {
+      const chatDiv = document.getElementById('chat');
+      const messageDiv = document.createElement('div');
+      messageDiv.textContent = `${data.sender} to ${data.receiver}: ${data.content} (${new Date(data.timestamp).toLocaleTimeString()})`;
+      chatDiv.appendChild(messageDiv);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    });
+
+    // Send a message
+    document.getElementById('messageForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const sender = document.getElementById('sender').value;
+      const receiver = document.getElementById('receiver').value;
+      const content = document.getElementById('message').value;
+      const room = joinRoom();
+
+      if (room) {
+        socket.emit('send_message', { sender, receiver, content, room });
+        document.getElementById('message').value = '';
+      } else {
+        alert('Please enter both sender and receiver IDs.');
+      }
+    });
+
+    // Load message history
+    async function loadMessages() {
+      const sender = document.getElementById('sender').value;
+      const receiver = document.getElementById('receiver').value;
+      if (sender && receiver) {
+        const response = await fetch(`http://localhost:5002/messages/${sender}/${receiver}`);
+        const messages = await response.json();
+        const chatDiv = document.getElementById('chat');
+        chatDiv.innerHTML = '';
+        messages.forEach((msg) => {
+          const messageDiv = document.createElement('div');
+          messageDiv.textContent = `${msg.sender} to ${msg.receiver}: ${msg.content} (${new Date(msg.timestamp).toLocaleTimeString()})`;
+          chatDiv.appendChild(messageDiv);
+        });
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }
+    }
+
+    // Load messages when sender or receiver changes
+    document.getElementById('sender').addEventListener('change', loadMessages);
+    document.getElementById('receiver').addEventListener('change', loadMessages);
+  </script>
+</body>
+</html>
